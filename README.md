@@ -1,4 +1,4 @@
-# Festival medieval e Cultura Geek de Roraima
+# Festival medieval de Cultura Geek de Roraima
 Mapa evento medieval
 <!DOCTYPE html>
 <html lang="pt-BR">
