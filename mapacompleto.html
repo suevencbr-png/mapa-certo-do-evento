@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Interativo Pro - FMCG/RR 2026</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #11141a;
+            color: #f5e6a3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, #c9a84c, #a38233);
+            color: #11141a;
+            border: 2px solid #f5e6a3;
+            padding: 14px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            text-transform: uppercase;
+        }
+
+        /* MENU INTERATIVO */
+        .interactive-menu {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid #c9a84c;
+            border-radius: 12px;
+            padding: 15px;
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .menu-title {
+            font-family: 'Times New Roman', serif;
+            font-size: 14px;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            color: #e6c673;
+            text-transform: uppercase;
+        }
+        .menu-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+        .menu-item {
+            display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05);
+            padding: 8px 12px; border-radius: 20px; color: #f5e6a3; text-decoration: none;
+            font-size: 12px; font-weight: bold; border: 1px solid transparent; transition: all 0.2s;
+        }
+        .menu-item:hover { background: rgba(201, 168, 76, 0.2); border-color: #c9a84c; }
+        .bullet { width: 12px; height: 12px; border-radius: 50%; }
+
+        /* Container do Mapa */
+        .map-canvas {
+            background: #27592e;
+            background-image: radial-gradient(circle at 50% 50%, #34733d 0%, transparent 60%);
+            border: 5px double #c9a84c; border-radius: 24px; padding: 45px 35px 35px 35px;
+            max-width: 1200px; width: 100%; position: relative; margin-top: 30px;
+        }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        /* CARDS */
+        .zone-card {
+            background: #fffdf3; color: #2c1a0c; border-radius: 12px; padding: 15px;
+            border: 2px solid #c9a84c; box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 8px; position: relative;
+            scroll-margin-top: 150px; /* Mais espaço para o balão não colar no topo da tela */
+        }
+
+        .zone-title { font-family: 'Times New Roman', serif; font-size: 15px; font-weight: bold; color: #4a2a1a; border-bottom: 2px solid #e6d5a9; padding-bottom: 4px; }
+        .tag-container { display: flex; flex-wrap: wrap; gap: 4px; }
+        .tag { background: #e6c673; color: #2c1a0c; font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 6px; }
+        .zone-desc { font-size: 11px; color: #5c4331; line-height: 1.4; }
+
+        /* A CAMADA DE BALÃO (Oculta por Padrão) */
+        .layer-details {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 15px); /* Posiciona acima do card dinamicamente */
+            left: 50%; transform: translateX(-50%);
+            background: #11141a; color: #f5e6a3; border: 2px solid #c9a84c;
+            padding: 12px; border-radius: 10px; width: 280px; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7); z-index: 100;
+            animation: popIn 0.3s ease-out forwards;
+        }
+        .layer-details::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            border-width: 10px 10px 0; border-style: solid; border-color: #c9a84c transparent;
+        }
+
+        /* Ilustrações internas */
+        .illustrations { display: flex; justify-content: space-around; align-items: center; margin-top: 8px; font-size: 26px; }
+        .sub-label { font-size: 10px; color: #d4c48a; display: block; margin-top: 5px;}
+        .real-image { width: 100%; border-radius: 6px; margin-top: 8px; border: 1px solid #c9a84c; }
+
+        /* Ativação via :target */
+        .zone-card:target .layer-details { display: block; }
+        .zone-card:target { animation: highlight 2s ease-in-out; }
+        
+        @keyframes highlight {
+            0%, 100% { border-color: #c9a84c; }
+            50% { border-color: #fff; box-shadow: 0 0 25px #f5e6a3; transform: scale(1.02); z-index: 10;}
+        }
+        @keyframes popIn {
+            0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+            100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* Cores de borda por zona */
+        .pos-palco { grid-column: 2; grid-row: 1; border-top: 5px solid #d4a017; }
+        .pos-elfos { grid-column: 1; grid-row: 1; border-top: 5px solid #1b6b2e; }
+        .pos-gamer { grid-column: 3; grid-row: 1; border-top: 5px solid #2e7d32; }
+        .pos-comercial { grid-column: 1; grid-row: 2 / 4; border-left: 5px solid #b8860b; justify-content: center; }
+        .pos-lazer { grid-column: 3; grid-row: 2 / 4; border-right: 5px solid #6c3483; justify-content: center; }
+        .pos-entrada { grid-column: 1; grid-row: 4; border-bottom: 5px solid #1a5276; }
+        .pos-seguranca { grid-column: 2; grid-row: 4; border-bottom: 5px solid #922b21; }
+        .pos-servicos { grid-column: 3; grid-row: 4; border-bottom: 5px solid #8b4513; }
+        .center-hub { grid-column: 2; grid-row: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+
+        /* Responsividade */
+        @media (max-width: 900px) {
+            .grid-layout { grid-template-columns: 1fr; }
+            .center-hub, .layer-details::after { display: none; }
+            .layer-details { position: static; transform: none; width: 100%; margin-bottom: 10px; animation: fadeIn 0.3s forwards;}
+            .pos-palco, .pos-elfos, .pos-gamer, .pos-comercial, .pos-lazer, .pos-entrada, .pos-seguranca, .pos-servicos { grid-column: 1 !important; grid-row: auto !important; }
+        }
+        @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
+    </style>
+</head>
+<body>
+
+<button class="btn-export" onclick="gerarPngPremium()"> Salvar Mapa em PNG</button>
+
+<div class="interactive-menu">
+    <div class="menu-title">🧭 Clique para Localizar e Revelar Ilustrações:</div>
+    <div class="menu-grid">
+        <a href="#palco" class="menu-item"><span class="bullet" style="background:#d4a017;"></span> Palco</a>
+        <a href="#elfos" class="menu-item"><span class="bullet" style="background:#1b6b2e;"></span> Floresta</a>
+        <a href="#gamer" class="menu-item"><span class="bullet" style="background:#2e7d32;"></span> Arena Gamer</a>
+        <a href="#comercial" class="menu-item"><span class="bullet" style="background:#b8860b;"></span> Comercial</a>
+        <a href="#lazer" class="menu-item"><span class="bullet" style="background:#6c3483;"></span> Lazer Ativo</a>
+        <a href="#banheiros" class="menu-item"><span class="bullet" style="background:#1a5276;"></span> Entrada/WC</a>
+        <a href="#seguranca" class="menu-item"><span class="bullet" style="background:#922b21;"></span> Segurança</a>
+        <a href="#camarim" class="menu-item"><span class="bullet" style="background:#8b4513;"></span> Camarim</a>
+    </div>
+</div>
+
+<div class="map-canvas" id="mapa-medieval-geek">
+    <div class="grid-layout">
+        
+        <!-- PALCO -->
+        <div class="zone-card pos-palco" id="palco">
+            <div class="layer-details">
+                <strong>Programação Principal</strong>
+                <div class="illustrations">
+                    <div>🎸<span class="sub-label">Bandas</span></div>
+                    <div>👑<span class="sub-label">Rei Artur</span></div>
+                    <div>🦸‍♂️<span class="sub-label">Cosplay</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🏰 Palco Rei Artur</div>
+            <div class="tag-container"><span class="tag">🎤 Shows</span></div>
+            <div class="zone-desc">Apresentações musicais principais.</div>
+        </div>
+
+        <!-- ELFOS -->
+        <div class="zone-card pos-elfos" id="elfos">
+            <div class="layer-details">
+                <strong>Zona de Descanso Acústico</strong>
+                <div class="illustrations">
+                    <div>🧝‍♀️<span class="sub-label">Elfos</span></div>
+                    <div>🎻<span class="sub-label">Acústico</span></div>
+                    <div>🏕️<span class="sub-label">Tendas</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🌿 Floresta dos Elfos</div>
+            <div class="tag-container"><span class="tag">🎵 Acústico</span></div>
+            <div class="zone-desc">Teatro e contação de lendas.</div>
+        </div>
+
+        <!-- GAMER -->
+        <div class="zone-card pos-gamer" id="gamer">
+            <div class="layer-details">
+                <strong>Espaço de Tecnologia e Dados</strong>
+                <div class="illustrations">
+                    <div>💻<span class="sub-label">PC Gamer</span></div>
+                    <div>🎲<span class="sub-label">RPG de Mesa</span></div>
+                    <div>🎧<span class="sub-label">Oficinas</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🕹️ Arena Gamer</div>
+            <div class="tag-container"><span class="tag">🎮 E-Sports</span></div>
+            <div class="zone-desc">Mesas de RPG e competições.</div>
+        </div>
+
+        <!-- COMERCIAL -->
+        <div class="zone-card pos-comercial" id="comercial">
+            <div class="layer-details">
+                <strong>Feira de Empreendedores</strong>
+                <div class="illustrations">
+                    <div>🍔<span class="sub-label">Tavernas</span></div>
+                    <div>🏺<span class="sub-label">Artesanato</span></div>
+                    <div>🗡️<span class="sub-label">Forja/Lojas</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🛒 Praça Comercial</div>
+            <div class="tag-container"><span class="tag">🍔 Alimentação</span></div>
+            <div class="zone-desc">30 stands de produtos e alimentação.</div>
+        </div>
+
+        <!-- CENTRO -->
+        <div class="center-hub">
+            <span style="font-size:45px;">🦎</span>
+            <strong style="font-size:12px;">Iguana do Mirandinha</strong>
+        </div>
+
+        <!-- LAZER ATIVO (SWORDPLAY COM PESSOAS LUTANDO) -->
+        <div class="zone-card pos-lazer" id="lazer">
+            <div class="layer-details">
+                <strong>Área de Combate (Swordplay)</strong>
+                <div class="illustrations" style="font-size: 35px; gap: 10px;">
+                    <!-- Simulação de combate! -->
+                    🤺 <span style="font-size: 20px; color: #d4a017;">💥</span> 🤺
+                </div>
+                <span class="sub-label" style="font-size: 11px;">Torneios de Espada de Espuma e Arquearia</span>
+                
+                <!-- DICA: Se você tiver um link de uma imagem de pessoas lutando (JPG ou PNG), 
+                     apague os emojis acima e tire o comentário da linha abaixo, colando o link: -->
+                <!-- <img src="COLE_O_LINK_DA_SUA_IMAGEM_AQUI.jpg" class="real-image" alt="Swordplay"> -->
+            </div>
+            <div class="zone-title">⚔️ Arena Lazer Ativo</div>
+            <div class="tag-container"><span class="tag">🗡️ Swordplay</span></div>
+            <div class="zone-desc">Combates com espadas de espuma.</div>
+        </div>
+
+        <!-- ENTRADA E BANHEIROS -->
+        <div class="zone-card pos-entrada" id="banheiros">
+            <div class="layer-details">
+                <strong>Layout dos Banheiros Químicos</strong>
+                <div class="illustrations">
+                    <div>🚹<span class="sub-label">Masculino</span></div>
+                    <div>🚺<span class="sub-label">Feminino</span></div>
+                    <div>♿<span class="sub-label">Acessível</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🚪 Entrada & Sanitários</div>
+            <div class="tag-container"><span class="tag">🎫 Acesso</span><span class="tag">🚻 Banheiros</span></div>
+            <div class="zone-desc">Distribuição interna das cabines.</div>
+        </div>
+
+        <!-- SEGURANÇA -->
+        <div class="zone-card pos-seguranca" id="seguranca">
+            <div class="layer-details">
+                <strong>Postos de Comando e Saúde</strong>
+                <div class="illustrations">
+                    <div>🚓<span class="sub-label">Guarda Municipal</span></div>
+                    <div>🚒<span class="sub-label">Bombeiros</span></div>
+                    <div>🚑<span class="sub-label">Ambulância UBS</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🛡️ Segurança & Apoio</div>
+            <div class="tag-container"><span class="tag">👮 GCM</span><span class="tag">🚒 Brigada</span></div>
+            <div class="zone-desc">Guarda Municipal e posto médico.</div>
+        </div>
+
+        <!-- CAMARIM -->
+        <div class="zone-card pos-servicos" id="camarim">
+            <div class="layer-details">
+                <strong>Estrutura de Apoio (Staff)</strong>
+                <div class="illustrations">
+                    <div>🪞<span class="sub-label">Penteadeiras</span></div>
+                    <div>👗<span class="sub-label">Trocadores</span></div>
+                    <div>🚰<span class="sub-label">Hidratação</span></div>
+                </div>
+            </div>
+            <div class="zone-title">🎭 Camarim Técnico</div>
+            <div class="tag-container"><span class="tag">💄 Maquiagem</span></div>
+            <div class="zone-desc">Espaço reservado para a produção.</div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function gerarPngPremium() {
+        const mapa = document.getElementById('mapa-medieval-geek');
+        html2canvas(mapa, { scale: 3, backgroundColor: '#11141a', useCORS: true }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'MAPA_DETALHADO_FMCG_2026.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+</script>
+
+</body>
+</html>
